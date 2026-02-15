@@ -95,6 +95,8 @@ function Dashboard() {
           </div>
           <div className="lg:col-span-8">
             <ActionItemsList
+              // FORCE RE-RENDER when switching transcripts to ensure fresh state
+              key={currentTranscript?.id || 'live-mode'}
               refreshTrigger={refreshTrigger}
               currentTranscript={currentTranscript}
             />

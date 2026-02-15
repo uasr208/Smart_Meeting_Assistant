@@ -11,21 +11,10 @@ interface ActionItemsListProps {
 }
 
 export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionItemsListProps) {
-  const [items, setItems] = useState<ActionItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'open' | 'done'>('all');
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ task: '', owner: '', due_date: '', tags: '' });
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [addForm, setAddForm] = useState({ task: '', owner: '', due_date: '', tags: '' });
-  const { user } = useAuth();
-
-  useEffect(() => {
-    // If we have a selected transcript from history, use its Action Items directly
+  // Lazy initialization for immediate state if currentTranscript is provided
+  const [items, setItems] = useState<ActionItem[]>(() => {
     if (currentTranscript) {
-      setLoading(true);
-      // Map StoredTranscript items to ActionItem interface (mocking ID/timestamps for UI)
-      const mappedItems: ActionItem[] = (currentTranscript.actionItems || []).map((item, index) => ({
+      return (currentTranscript.actionItems || []).map((item, index) => ({
         id: `history-${currentTranscript.id}-${index}`,
         transcript_id: currentTranscript.id,
         user_id: user?.id || 'guest',
@@ -37,10 +26,28 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
         updated_at: currentTranscript.date,
         tags: []
       }));
-      setItems(mappedItems);
-      setLoading(false);
-    } else {
-      // Fallback to Supabase fetching (or empty if offline)
+    }
+    return [];
+  });
+
+  // Loading is false initially if we have data, true otherwise (unless offline)
+  const [loading, setLoading] = useState(() => {
+    if (currentTranscript) return false;
+    if (!supabase) return false; // Immediate offline load
+    return true;
+  });
+
+  const [filter, setFilter] = useState<'all' | 'open' | 'done'>('all');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ task: '', owner: '', due_date: '', tags: '' });
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addForm, setAddForm] = useState({ task: '', owner: '', due_date: '', tags: '' });
+  const { user } = useAuth();
+
+  useEffect(() => {
+    // If we have a selected transcript, we already initialized state lazily. 
+    // We only need to fetch if NO transcript AND we have supabase.
+    if (!currentTranscript && user) {
       fetchItems();
     }
   }, [currentTranscript, user, refreshTrigger]);
@@ -51,8 +58,10 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
       return;
     }
 
-    // Safety check for offline mode
+    // Safety check for offline mode - Bypass network entirely
     if (!supabase) {
+      console.log('Offline mode: creating empty list');
+      setItems([]);
       setLoading(false);
       return;
     }
@@ -67,7 +76,6 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
 
       if (error) {
         console.error('Error fetching items:', error);
-        // Don't clear items on error, maybe keep previous state or show error
       } else {
         setItems(data || []);
       }
