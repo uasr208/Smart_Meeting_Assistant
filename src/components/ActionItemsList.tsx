@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { CheckCircle2, Circle, Edit2, Trash2, Plus, X, Tag, Calendar, User } from 'lucide-react';
+import { CheckCircle2, Circle, Edit2, Trash2, Plus, X, Tag, Calendar, User, Clipboard } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import type { ActionItem } from '../types/database';
@@ -122,6 +122,14 @@ export function ActionItemsList({ refreshTrigger }: ActionItemsListProps) {
     return item.status === filter;
   });
 
+  const copyToClipboard = () => {
+    const text = filteredItems.map(item =>
+      `- [${item.status === 'done' ? 'x' : ' '}] ${item.task} ${item.owner ? `(@${item.owner})` : ''} ${item.due_date ? `due ${item.due_date}` : ''}`
+    ).join('\n');
+    navigator.clipboard.writeText(text);
+    alert('Action items copied to clipboard!');
+  };
+
   if (loading) {
     return (
       <div className="bg-white rounded-xl shadow-lg p-6">
@@ -136,13 +144,23 @@ export function ActionItemsList({ refreshTrigger }: ActionItemsListProps) {
     <div className="bg-white rounded-xl shadow-lg p-6">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-slate-800">Action Items</h2>
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2"
-        >
-          <Plus className="w-4 h-4" />
-          Add Item
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={copyToClipboard}
+            className="text-slate-600 hover:text-blue-600 px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 border border-slate-200 hover:border-blue-200"
+            title="Copy list to clipboard"
+          >
+            <Clipboard className="w-4 h-4" />
+            <span className="hidden sm:inline">Copy</span>
+          </button>
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Add Item</span>
+          </button>
+        </div>
       </div>
 
       <div className="flex gap-2 mb-6">
@@ -150,11 +168,10 @@ export function ActionItemsList({ refreshTrigger }: ActionItemsListProps) {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
-              filter === f
-                ? 'bg-blue-600 text-white'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
+            className={`px-4 py-2 rounded-lg font-medium transition ${filter === f
+              ? 'bg-blue-600 text-white'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
             <span className="ml-2 text-sm">
@@ -228,11 +245,10 @@ export function ActionItemsList({ refreshTrigger }: ActionItemsListProps) {
           filteredItems.map((item) => (
             <div
               key={item.id}
-              className={`border rounded-lg p-4 transition ${
-                item.status === 'done'
-                  ? 'bg-slate-50 border-slate-200'
-                  : 'bg-white border-slate-300 hover:border-blue-300'
-              }`}
+              className={`border rounded-lg p-4 transition ${item.status === 'done'
+                ? 'bg-slate-50 border-slate-200'
+                : 'bg-white border-slate-300 hover:border-blue-300'
+                }`}
             >
               {editingId === item.id ? (
                 <div className="space-y-3">
@@ -295,9 +311,8 @@ export function ActionItemsList({ refreshTrigger }: ActionItemsListProps) {
 
                     <div className="flex-1 min-w-0">
                       <p
-                        className={`text-slate-800 font-medium ${
-                          item.status === 'done' ? 'line-through text-slate-500' : ''
-                        }`}
+                        className={`text-slate-800 font-medium ${item.status === 'done' ? 'line-through text-slate-500' : ''
+                          }`}
                       >
                         {item.task}
                       </p>
