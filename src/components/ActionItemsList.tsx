@@ -36,8 +36,14 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
 
   // Loading is false initially if we have data, true otherwise (unless offline)
   const [loading, setLoading] = useState(() => {
+    // If we have history data, we are ready.
     if (currentTranscript) return false;
-    if (!supabase) return false; // Immediate offline load
+
+    // CRITICAL FIX: If Supabase is missing (Vercel without keys), default to false immediately.
+    // conflicting updates in useEffect can cause a flash, but better than being stuck true.
+    if (!supabase) return false;
+
+    // Otherwise, we are waiting for a fetch.
     return true;
   });
 
@@ -275,7 +281,6 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
           </button>
         </div>
       </div>
-// ... (Buttons for filter)
       <div className="flex gap-2 mb-6">
         {(['all', 'open', 'done'] as const).map((f) => (
           <button
@@ -294,41 +299,43 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
         ))}
       </div>
 
-      {showAddForm && (
-        // ... (Add form logic kept same, just ensuring conditional verify)
-        <div className="mb-6 p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
-          {/* ... Form content ... */}
-          {/* Re-implementing simplified form for brevity in replacement, ensuring functionality */}
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-slate-800">New Action Item</h3>
-            <button
-              onClick={() => {
-                setShowAddForm(false);
-                setAddForm({ task: '', owner: '', due_date: '', tags: '' });
-              }}
-              className="text-slate-500 hover:text-slate-700"
-            >
-              <X className="w-5 h-5" />
-            </button>
+      {
+        showAddForm && (
+          // ... (Add form logic kept same, just ensuring conditional verify)
+          <div className="mb-6 p-4 border-2 border-blue-200 rounded-lg bg-blue-50">
+            {/* ... Form content ... */}
+            {/* Re-implementing simplified form for brevity in replacement, ensuring functionality */}
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-slate-800">New Action Item</h3>
+              <button
+                onClick={() => {
+                  setShowAddForm(false);
+                  setAddForm({ task: '', owner: '', due_date: '', tags: '' });
+                }}
+                className="text-slate-500 hover:text-slate-700"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={addForm.task}
+                onChange={(e) => setAddForm({ ...addForm, task: e.target.value })}
+                placeholder="Task description"
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              {/* ... remaining fields ... */}
+              <button
+                onClick={addNewItem}
+                className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition"
+              >
+                Add Item
+              </button>
+            </div>
           </div>
-          <div className="space-y-3">
-            <input
-              type="text"
-              value={addForm.task}
-              onChange={(e) => setAddForm({ ...addForm, task: e.target.value })}
-              placeholder="Task description"
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            {/* ... remaining fields ... */}
-            <button
-              onClick={addNewItem}
-              className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition"
-            >
-              Add Item
-            </button>
-          </div>
-        </div>
-      )}
+        )
+      }
 
       <div className="space-y-3 flex-1 overflow-y-auto min-h-[300px]">
         {filteredItems.length === 0 ? (
@@ -464,6 +471,6 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
           ))
         )}
       </div>
-    </div>
+    </div >
   );
 }
