@@ -11,26 +11,28 @@ interface ActionItemsListProps {
 }
 
 export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionItemsListProps) {
+  // DEBUG: Trace inbound props
+  // console.log('ActionItemsList Render:', { id: currentTranscript?.id, itemCount: currentTranscript?.actionItems?.length });
+
   // Lazy initialization for immediate state if currentTranscript is provided
   const [items, setItems] = useState<ActionItem[]>(() => {
-    try {
-      if (currentTranscript && Array.isArray(currentTranscript.actionItems)) {
-        return currentTranscript.actionItems.map((item, index) => ({
-          id: `history-${currentTranscript.id}-${index}`,
-          transcript_id: currentTranscript.id,
-          user_id: user?.id || 'guest',
-          task: item?.task || 'Untitled Task',
-          owner: item?.owner || null,
-          due_date: item?.due_date || null,
-          status: 'open',
-          created_at: currentTranscript.date,
-          updated_at: currentTranscript.date,
-          tags: []
-        }));
-      }
-    } catch (e) {
-      console.error('Error parsing history item:', e);
+    // DEBUG: Ensure we catch the data
+    if (currentTranscript && currentTranscript.actionItems && currentTranscript.actionItems.length > 0) {
+      console.log('ActionItemsList: Initializing from history', currentTranscript.actionItems.length);
+      return currentTranscript.actionItems.map((item, index) => ({
+        id: `history-${currentTranscript.id}-${index}`,
+        transcript_id: currentTranscript.id,
+        user_id: user?.id || 'guest',
+        task: item.task || 'Untitled Task',
+        owner: item.owner || 'Unassigned',
+        due_date: item.due_date || null,
+        status: 'open',
+        created_at: currentTranscript.date,
+        updated_at: currentTranscript.date,
+        tags: []
+      }));
     }
+    console.log('ActionItemsList: No history items found or Transcript matches live mode.');
     return [];
   });
 
@@ -121,14 +123,29 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
       console.error('Failed to update status:', error);
     }
   };
-  const filteredItems = items.filter(item => {
+  // SAFE GUARD: Ensure items is always an array
+  const activeItems = Array.isArray(items) ? items : [];
+
+  const filteredItems = activeItems.filter(item => {
     if (filter === 'all') return true;
     return item.status === filter;
   });
 
+  // Helper to safely format dates without crashing
+  const safeDate = (dateStr: string | null) => {
+    if (!dateStr) return '';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr; // Return original string if parse fails (e.g. "Upcoming")
+      return d.toLocaleDateString();
+    } catch (e) {
+      return '';
+    }
+  };
+
   const deleteItem = async (id: string) => {
     // Optimistic delete
-    setItems(items.filter(i => i.id !== id));
+    setItems(activeItems.filter(i => i.id !== id));
 
     if (id.startsWith('history-')) {
       return;
@@ -164,7 +181,7 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
       tags: addForm.tags.split(',').map(t => t.trim()).filter(Boolean)
     };
 
-    setItems([newItem, ...items]);
+    setItems([newItem, ...activeItems]);
     setAddForm({ task: '', owner: '', due_date: '', tags: '' });
     setShowAddForm(false);
 
@@ -206,13 +223,13 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
   const saveEdit = async () => {
     if (!editingId) return;
 
-    const updatedItem = items.find(i => i.id === editingId);
+    const updatedItem = activeItems.find(i => i.id === editingId);
     if (!updatedItem) return;
 
     const tags = editForm.tags.split(',').map(t => t.trim()).filter(Boolean);
 
     // Optimistic update
-    setItems(items.map(i =>
+    setItems(activeItems.map(i =>
       i.id === editingId
         ? { ...i, ...editForm, tags, updated_at: new Date().toISOString() }
         : i
@@ -293,7 +310,7 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
             <span className="ml-2 text-sm">
-              ({items.filter(item => f === 'all' || item.status === f).length})
+              ({activeItems.filter(item => f === 'all' || item.status === f).length})
             </span>
           </button>
         ))}
@@ -432,7 +449,7 @@ export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionIte
                         {item.due_date && (
                           <div className="flex items-center gap-1">
                             <Calendar className="w-4 h-4" />
-                            <span>{new Date(item.due_date).toLocaleDateString()}</span>
+                            <span>{safeDate(item.due_date)}</span>
                           </div>
                         )}
                         {item.tags && item.tags.length > 0 && (

@@ -40,7 +40,10 @@ export function TranscriptHistory({ refreshTrigger, onSelectTranscript }: Transc
         {history.map((item) => (
           <button
             key={item.id}
-            onClick={() => onSelectTranscript(item)}
+            onClick={() => {
+              console.log('History Clicked:', item.id, 'Actions:', item.actionItems?.length);
+              onSelectTranscript(item);
+            }}
             className="w-full text-left p-4 hover:bg-slate-50 transition-colors group flex items-start gap-3"
           >
             <div className="mt-1 bg-blue-100 p-1.5 rounded text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
