@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
-import { CheckCircle2, XCircle, Activity, Database, Server, BrainCircuit } from 'lucide-react';
+import { CheckCircle2, XCircle, Activity, Database, Server, BrainCircuit, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+
+interface SystemStatus {
+    name: string;
+    status: 'healthy' | 'degraded' | 'down';
+    message: string;
+    lastChecked: string;
+}
 
 interface StatusItem {
     id: string;
@@ -15,52 +22,92 @@ interface StatusItem {
 
 export function Status() {
     const { isOffline } = useAuth();
-    const [statuses, setStatuses] = useState<StatusItem[]>([
-        { id: 'backend', name: 'Backend Services', status: 'healthy', icon: Server, message: 'App is running' },
-        { id: 'db', name: 'Database', status: 'healthy', icon: Database, message: 'Checking...' },
-        { id: 'llm', name: 'LLM Connection', status: 'healthy', icon: BrainCircuit, message: 'Checking...' },
-    ]);
+    const [backendStatus, setBackendStatus] = useState<SystemStatus>({ name: 'Backend Services', status: 'healthy', message: 'Checking...', lastChecked: '' });
+    const [databaseStatus, setDatabaseStatus] = useState<SystemStatus>({ name: 'Database', status: 'healthy', message: 'Checking...', lastChecked: '' });
+    const [llmStatus, setLlmStatus] = useState<SystemStatus>({ name: 'LLM Connection', status: 'healthy', message: 'Checking...', lastChecked: '' });
+
+    const getStatusColor = (status: SystemStatus) => {
+        if (status.status === 'healthy') return 'bg-green-100 text-green-700 border-green-200';
+        if (status.status === 'degraded') return 'bg-amber-100 text-amber-700 border-amber-200';
+        return 'bg-red-100 text-red-700 border-red-200';
+    };
+
+    const getStatusIcon = (status: SystemStatus) => {
+        if (status.status === 'healthy') return <CheckCircle2 className="w-5 h-5 text-green-600" />;
+        if (status.status === 'degraded') return <AlertTriangle className="w-5 h-5 text-amber-600" />;
+        return <XCircle className="w-5 h-5 text-red-600" />;
+    };
 
     useEffect(() => {
-        const checkStatus = async () => {
-            // 1. Database Check
-            let dbStatus: 'healthy' | 'error' = 'healthy';
-            let dbMsg = 'Connected (LocalStorage)';
+        const checkSystemStatus = async () => {
+            // Check Backend (Mock ping)
+            setBackendStatus({
+                name: 'Backend Services',
+                status: 'healthy',
+                message: 'Operational',
+                lastChecked: new Date().toISOString()
+            });
 
+            // Check Database
             if (!isOffline && supabase) {
                 try {
-                    const start = performance.now();
                     const { error } = await supabase.from('transcripts').select('count', { count: 'exact', head: true });
-                    const latency = Math.round(performance.now() - start);
-
                     if (error) throw error;
-                    dbMsg = `Connected (${latency}ms)`;
+                    setDatabaseStatus({
+                        name: 'Database',
+                        status: 'healthy',
+                        message: 'Connected',
+                        lastChecked: new Date().toISOString()
+                    });
                 } catch (e) {
-                    dbStatus = 'error';
-                    dbMsg = 'Connection failed';
+                    setDatabaseStatus({
+                        name: 'Database',
+                        status: 'degraded',
+                        message: 'Connection Issues (Using LocalStorage)',
+                        lastChecked: new Date().toISOString()
+                    });
                 }
+            } else {
+                setDatabaseStatus({
+                    name: 'Database',
+                    status: 'healthy',
+                    message: 'Offline Mode (LocalStorage)',
+                    lastChecked: new Date().toISOString()
+                });
             }
 
-            setStatuses(prev => prev.map(s =>
-                s.id === 'db' ? { ...s, status: dbStatus, message: dbMsg } : s
-            ));
 
-            // 2. LLM Check
-            // Simulating check since we don't have a backend proxy yet
-            // If we had an API key in env, we'd check that
-            const hasApiKey = !!import.meta.env.VITE_OPENAI_API_KEY || !!import.meta.env.VITE_ANTHROPIC_API_KEY;
+            // Check LLM
+            const hasOpenAI = !!import.meta.env.VITE_OPENAI_API_KEY;
+            const hasAnthropic = !!import.meta.env.VITE_ANTHROPIC_API_KEY;
 
-            setStatuses(prev => prev.map(s =>
-                s.id === 'llm' ? {
-                    ...s,
-                    status: hasApiKey ? 'healthy' : 'error',
-                    message: hasApiKey ? 'API Key Configured' : 'API Key Missing (Using Fallback)'
-                } : s
-            ));
+            if (hasOpenAI || hasAnthropic) {
+                setLlmStatus({
+                    name: 'LLM Connection',
+                    status: 'healthy',
+                    message: 'API Key Configured',
+                    lastChecked: new Date().toISOString()
+                });
+            } else {
+                setLlmStatus({
+                    name: 'LLM Connection',
+                    status: 'degraded', // Changed from 'down' to 'degraded' for Fallback Mode
+                    message: 'Operational (Fallback Mode)', // Changed text
+                    lastChecked: new Date().toISOString()
+                });
+            }
         };
 
-        checkStatus();
+        checkSystemStatus();
+        const interval = setInterval(checkSystemStatus, 30000);
+        return () => clearInterval(interval);
     }, [isOffline]);
+
+    const allStatuses = [
+        { ...backendStatus, id: 'backend', icon: Server },
+        { ...databaseStatus, id: 'db', icon: Database },
+        { ...llmStatus, id: 'llm', icon: BrainCircuit },
+    ];
 
     return (
         <div className="min-h-screen bg-slate-50 p-8">
@@ -75,31 +122,24 @@ export function Status() {
                     </Link>
                 </div>
 
-                <div className="grid gap-6">
-                    {statuses.map((item) => (
-                        <div key={item.id} className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex items-center justify-between">
+                <div className="space-y-4">
+                    {allStatuses.map((status) => (
+                        <div
+                            key={status.id}
+                            className={`flex items-center justify-between p-4 rounded-lg border ${getStatusColor(status)}`}
+                        >
                             <div className="flex items-center gap-4">
-                                <div className={`p-3 rounded-lg ${item.status === 'healthy' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                                    }`}>
-                                    <item.icon className="w-6 h-6" />
+                                <div className={`p-2 rounded-full ${status.status === 'healthy' ? 'bg-white/50' : 'bg-white/20'}`}>
+                                    <status.icon className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h3 className="font-semibold text-lg text-slate-900">{item.name}</h3>
-                                    <p className="text-slate-500">{item.message}</p>
+                                    <h3 className="font-semibold text-lg">{status.name}</h3>
+                                    <p className="text-sm opacity-90">{status.message}</p>
                                 </div>
                             </div>
-                            <div>
-                                {item.status === 'healthy' ? (
-                                    <div className="flex items-center gap-2 bg-green-50 text-green-700 px-4 py-2 rounded-full border border-green-200">
-                                        <CheckCircle2 className="w-5 h-5" />
-                                        <span className="font-medium">Operational</span>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center gap-2 bg-red-50 text-red-700 px-4 py-2 rounded-full border border-red-200">
-                                        <XCircle className="w-5 h-5" />
-                                        <span className="font-medium">Issue Detected</span>
-                                    </div>
-                                )}
+                            <div className="flex items-center gap-2 bg-white/50 px-3 py-1 rounded-full">
+                                {getStatusIcon(status)}
+                                <span className="text-sm font-medium capitalize">{status.status}</span>
                             </div>
                         </div>
                     ))}

@@ -94,7 +94,10 @@ function Dashboard() {
             />
           </div>
           <div className="lg:col-span-8">
-            <ActionItemsList refreshTrigger={refreshTrigger} />
+            <ActionItemsList
+              refreshTrigger={refreshTrigger}
+              currentTranscript={currentTranscript}
+            />
           </div>
         </div>
       </main>
