@@ -36,25 +36,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     // Check if Supabase is configured
     if (!supabase) {
-      console.warn('Supabase not configured. Running in offline/guest mode.');
+      console.log('Supabase not configured. Immediate Offline Mode.');
       setIsOffline(true);
 
-      // Check for cached guest session
+      // Auto-login guest if previously active or always default to it meant for offline usage
       const isGuest = localStorage.getItem('guest_mode') === 'true';
-      if (isGuest) {
+      if (isGuest || true) { // Default to guest immediately if strictly offline
         setUser(GUEST_USER);
       }
+
       setLoading(false);
       return;
     }
 
+    // Only attempt session fetching if we HAVE a client
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      setLoading(false);
+    }).catch(() => {
+      // Fallback if network fails even if client exists
       setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
