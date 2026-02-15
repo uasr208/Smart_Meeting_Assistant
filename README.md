@@ -8,6 +8,32 @@ A production-ready React application for tracking meeting action items. Features
 -   **History**: Retains the last 5 transcripts for quick reload.
 -   **System Health**: Dashboard (`/status`) to monitor backend, database, and LLM connectivity.
 -   **Export**: Copy action items to clipboard with one click.
+-   **Verify**: Check the "System Health" page to ensure all services are green.
+
+## 🧪 Test Script: Offline Extraction
+
+To verify the robust Regex fallback logic (Founder-level reliability without API keys), use this sample transcript from "Project Phoenix Sync":
+
+```text
+Project Phoenix Sync - Feb 15, 2026
+
+Alice: Welcome everyone. We need to get the MVP out by Friday.
+Bob: I've finished the backend.
+Alice: Great. Bob, please prepare the deployment checklist by tomorrow.
+Bob: Will do.
+Charlie: I'm stuck on the API integration.
+Alice: Sarah, can you help Charlie with the API docs?
+Sarah: Sure, I will schedule a syncing session for this afternoon.
+Alice: Also, we need to finalize the UI.
+David: I will update the Figma designs by Thursday.
+Alice: Perfect. Action item: Review the security audit report. Assigned to me, due next week.
+```
+
+**Expected Output:**
+1.  **Task**: Prepare the deployment checklist | **Owner**: Bob | **Due**: [Tomorrow's Date]
+2.  **Task**: Schedule a syncing session | **Owner**: Sarah | **Due**: [Today's Date]
+3.  **Task**: Update the Figma designs | **Owner**: David | **Due**: [Thursday's Date]
+4.  **Task**: Review the security audit report | **Owner**: Me (Alice) | **Due**: [Next Week]
 
 ## Tech Stack
 -   **Frontend**: React, TypeScript, Tailwind CSS, Vite

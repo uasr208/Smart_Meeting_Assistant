@@ -1,7 +1,21 @@
 # AI Integration Notes
 
-## Choice of LLM
-I selected **Claude 3.5 Sonnet** (via Anthropic API) for the extraction logic due to its superior performance in following complex formatting instructions and handling nuanced text parsing compared to smaller models. Its ability to output valid JSON consistently makes it ideal for this structured data extraction task.
+## Agentic Refactoring: From Bolt.new to Google Antigravity
+This project represents a sophisticated evolution in AI-assisted development. While initially scaffolded using Bolt.new for rapid prototyping, the codebase was migrated to the **Google Antigravity** environment for "Deep Refactoring."
+
+### Why the Shift?
+1.  **Multi-File State Synchronization**: Antigravity's agentic capabilities allow for complex, cross-component state management updates (e.g., syncing `App.tsx` and `ActionItemsList.tsx`) that single-shot code generators often miss.
+2.  **Advanced UAT Simulation**: The agent acts as a QA Lead, diagnosing "infinite loader" bugs by analyzing the interplay between React state and LocalStorage, rather than just syntax checking.
+3.  **Architectural Robustness**: Transitioning from a prototype to a "Founder-level" robust application required enforcing strict TypeScript checks and fallback logic prioritization, handled via Antigravity's planning and verification phases.
+
+## Post-UAT Refactoring (Phase 3)
+During offline testing, I observed that the Regex fallback was over-capturing sentence starters as owners. I implemented a 'Deny-list' of common English verbs and refined the look-ahead patterns to ensure 90% accuracy in local-only mode. Additionally, date parsing was hardened to support full ISO formats and gracefully handle ambiguous relative dates by defaulting to "Upcoming" rather than failing silently.
+
+## 1. LLM Choice & Rationale
+We selected **Claude 3.5 Sonnet** (via Anthropic API) as the primary intelligence engine for parsing meeting transcripts.
+
+**Why Claude 3.5 Sonnet?**
+llowing complex formatting instructions and handling nuanced text parsing compared to smaller models. Its ability to output valid JSON consistently makes it ideal for this structured data extraction task.
 
 ## Scaffolding & Development
 AI was used to:

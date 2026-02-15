@@ -41,6 +41,17 @@ function parseWithRegex(content: string): ParsedActionItem[] {
     'responsible:', 'assigned to:', '[ ]', '[]'
   ];
 
+  /* 
+     Refined Deny-list for Post-UAT Owner Extraction accuracy.
+     These common sentence starters were triggering false positives.
+  */
+  const ownerDenyList = [
+    'sounds', 'one', 'will', 'shall', 'can', 'could', 'would', 'should',
+    'please', 'great', 'okay', 'thanks', 'yes', 'no', 'maybe', 'alright',
+    'make', 'let', 'check', 'verify', 'update', 'test', 'ensure', 'create',
+    'deploy', 'run', 'start', 'stop', 'open', 'close'
+  ];
+
   const imperativeVerbs = [
     'prepare', 'create', 'send', 'book', 'schedule', 'review', 'update',
     'write', 'complete', 'finish', 'submit', 'check', 'fix', 'deploy',
@@ -54,17 +65,22 @@ function parseWithRegex(content: string): ParsedActionItem[] {
     /assigned to:?\s*([^,.\n]+)/i,
     /owner:?\s*([^,.\n]+)/i,
     /responsible:?\s*([^,.\n]+)/i,
-    /-\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*will/i,
-    /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s+please\s+/,
-    /^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?),?\s+(?:can\s+you|could\s+you|would\s+you)\s+/,
+    // Refined: enforce capitalization for implicit assignments
+    /-\s*([A-Z][a-z]+)\s+will/i,
+    /^([A-Z][a-z]+),?\s+please\s+/,
+    /^([A-Z][a-z]+),?\s+(?:can|could|would)\s+you\s+/i,
   ];
 
   const datePatterns = [
+    // ISO Date (YYYY-MM-DD) - Added explicitly
+    /(\d{4}-\d{2}-\d{2})/,
+    // UK/US formats
     /by\s+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
     /due\s+(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
     /deadline:?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/i,
     /by\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i,
     /by\s+(next\s+week|this\s+week|tomorrow)/i,
+    // Catch-all for simple dates at end of line
     /(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/,
   ];
 
@@ -78,7 +94,7 @@ function parseWithRegex(content: string): ParsedActionItem[] {
     );
 
     // Check for bullet points
-    const isBulletPoint = line.trim().match(/^[-*•]\s+/);
+    const isBulletPoint = !!line.trim().match(/^[-*•]\s+/);
 
     // Check for imperative statements (someone doing something)
     let hasImperative = false;
@@ -106,13 +122,17 @@ function parseWithRegex(content: string): ParsedActionItem[] {
       for (const pattern of ownerPatterns) {
         const match = line.match(pattern);
         if (match && match[1]) {
-          owner = match[1].trim();
-          task = task.replace(match[0], '').trim();
-          break;
+          const extracted = match[1].trim();
+          // Apply Deny-list check
+          if (!ownerDenyList.includes(extracted.toLowerCase())) {
+            owner = extracted;
+            task = task.replace(match[0], '').trim();
+            break;
+          }
         }
       }
 
-      // If no owner found via patterns, try to extract from speaker
+      // If no owner found via patterns, try to extract from speaker (if imperative)
       if (!owner && line.includes(':')) {
         const speakerMatch = line.match(/^([A-Z][a-z]+)\s*:/);
         if (speakerMatch && speakerMatch[1]) {
@@ -120,28 +140,61 @@ function parseWithRegex(content: string): ParsedActionItem[] {
           // Check if speaker is giving instruction to someone else
           const commandMatch = task.match(/^(please\s+)?([A-Z][a-z]+)\s+/);
           if (commandMatch && commandMatch[2]) {
-            owner = commandMatch[2];
+            const potentialOwner = commandMatch[2];
+            if (!ownerDenyList.includes(potentialOwner.toLowerCase())) {
+              owner = potentialOwner;
+            }
           }
+          // Note: We don't default to Speaker as owner for imperatives usually, 
+          // unless they say "I will...". Let's keep it safe.
         }
       }
 
       let dueDate: string | null = null;
-      for (const pattern of datePatterns) {
-        const match = line.match(pattern);
-        if (match && match[1]) {
-          const dateStr = match[1].trim();
-          dueDate = parseDateString(dateStr);
-          task = task.replace(match[0], '').trim();
-          break;
+      // Prioritize ISO Date check first to prevent truncation
+      const isoMatch = line.match(/(\d{4}-\d{2}-\d{2})/);
+      if (isoMatch) {
+        dueDate = isoMatch[1];
+        // Remove from task to avoid "by 2026-02-20" leaving "by"
+        task = task.replace(isoMatch[0], '').trim();
+      } else {
+        for (const pattern of datePatterns) {
+          const match = line.match(pattern);
+          if (match && match[1]) {
+            // explicit ISO regex in datePatterns might still match if loop runs 
+            // but we prioritized it above.
+            const dateStr = match[1].trim();
+            const parsed = parseDateString(dateStr);
+            // Only replace if valid date found
+            if (parsed && parsed !== 'Upcoming') {
+              dueDate = parsed;
+              task = task.replace(match[0], '').trim();
+              break;
+            }
+          }
+        }
+      }
+
+      // Owner Safety: Self-assignment detection
+      if (!owner || owner === 'Unassigned') {
+        if (/\bI\s+(will|shall|am)\b/i.test(line) || /\b(my|mine)\b/i.test(line)) {
+          owner = 'User (Self)';
         }
       }
 
       task = task.replace(/\s+/g, ' ').trim();
+
+      // Task Name Cleanup: Remove trailing prepositions often left by date removal
+      task = task.replace(/\s+(by|at|on|due|for)$/i, '');
+
+      // Post-processing cleanup
+      if (task.endsWith(',') || task.endsWith('.')) task = task.slice(0, -1);
+
       if (task.length > 5) {
         actionItems.push({
           task,
-          owner: owner || "Unassigned", // Requirement: "Unassigned" if not found
-          due_date: dueDate || "Not Found" // Requirement: "Not Found" if not found
+          owner: owner || "Unassigned",
+          due_date: dueDate || "Upcoming"
         });
       }
     }
@@ -153,6 +206,16 @@ function parseWithRegex(content: string): ParsedActionItem[] {
 function parseDateString(dateStr: string): string | null {
   const lower = dateStr.toLowerCase();
   const today = new Date();
+
+  // FIX: Handle full ISO dates directly
+  if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateStr;
+  }
+
+  // Explicitly handle "Upcoming" or "TBD" keywords passed in or fallbacks
+  if (['upcoming', 'tbd', 'later', 'soon'].includes(lower)) {
+    return 'Upcoming';
+  }
 
   if (lower === 'tomorrow') {
     const tomorrow = new Date(today);
@@ -182,17 +245,31 @@ function parseDateString(dateStr: string): string | null {
     return targetDay.toISOString().split('T')[0];
   }
 
+  // Handle standard short dates (e.g. 01/20/26)
   const dateMatch = dateStr.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/);
   if (dateMatch) {
-    let [, month, day, year] = dateMatch;
+    let [, p1, p2, p3] = dateMatch;
+    // Heuristic: if p1 > 12, it's likely day. if p3 is year.
+    // Let's assume M/D/Y or D/M/Y is hard, but usually US format in code. 
+    // Let's standardise on trying `new Date(string)`
+
+    let year = p3;
     if (year.length === 2) {
       year = '20' + year;
     }
-    const date = new Date(`${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`);
+
+    // Try M/D/Y first (US common)
+    let date = new Date(`${year}-${p1.padStart(2, '0')}-${p2.padStart(2, '0')}`);
+
+    // If invalid, maybe D/M/Y? But JS Date(string) usually works well with standardized inputs
+    if (isNaN(date.getTime())) {
+      date = new Date(dateStr); // Parsing fallback
+    }
+
     if (!isNaN(date.getTime())) {
       return date.toISOString().split('T')[0];
     }
   }
 
-  return null;
+  return "Upcoming"; // Fallback as requested
 }

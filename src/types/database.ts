@@ -27,7 +27,7 @@ export interface Database {
       action_items: {
         Row: {
           id: string;
-          transcript_id: string;
+          transcript_id: string | null;
           task: string;
           owner: string | null;
           due_date: string | null;
@@ -39,7 +39,7 @@ export interface Database {
         };
         Insert: {
           id?: string;
-          transcript_id: string;
+          transcript_id?: string | null;
           task: string;
           owner?: string | null;
           due_date?: string | null;
@@ -51,7 +51,7 @@ export interface Database {
         };
         Update: {
           id?: string;
-          transcript_id?: string;
+          transcript_id?: string | null;
           task?: string;
           owner?: string | null;
           due_date?: string | null;
