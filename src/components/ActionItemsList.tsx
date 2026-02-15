@@ -13,19 +13,23 @@ interface ActionItemsListProps {
 export function ActionItemsList({ refreshTrigger, currentTranscript }: ActionItemsListProps) {
   // Lazy initialization for immediate state if currentTranscript is provided
   const [items, setItems] = useState<ActionItem[]>(() => {
-    if (currentTranscript) {
-      return (currentTranscript.actionItems || []).map((item, index) => ({
-        id: `history-${currentTranscript.id}-${index}`,
-        transcript_id: currentTranscript.id,
-        user_id: user?.id || 'guest',
-        task: item.task,
-        owner: item.owner,
-        due_date: item.due_date,
-        status: 'open',
-        created_at: currentTranscript.date,
-        updated_at: currentTranscript.date,
-        tags: []
-      }));
+    try {
+      if (currentTranscript && Array.isArray(currentTranscript.actionItems)) {
+        return currentTranscript.actionItems.map((item, index) => ({
+          id: `history-${currentTranscript.id}-${index}`,
+          transcript_id: currentTranscript.id,
+          user_id: user?.id || 'guest',
+          task: item?.task || 'Untitled Task',
+          owner: item?.owner || null,
+          due_date: item?.due_date || null,
+          status: 'open',
+          created_at: currentTranscript.date,
+          updated_at: currentTranscript.date,
+          tags: []
+        }));
+      }
+    } catch (e) {
+      console.error('Error parsing history item:', e);
     }
     return [];
   });
